@@ -1,6 +1,8 @@
 #pragma once
 
 // Defined before including GLEW to suppress deprecation messages on macOS
+#include "camera/camera.h"
+#include "utils/sceneparser.h"
 #ifdef __APPLE__
 #define GL_SILENCE_DEPRECATION
 #endif
@@ -48,4 +50,25 @@ private:
 
     // Device Correction Variables
     int m_devicePixelRatio;
+
+    // metadata
+    RenderData m_metaData;
+    Camera m_camera = Camera(100, 100, m_metaData.cameraData);
+
+    // Shader stuff
+    GLuint m_shader;
+
+    // VBO/VAO for shapes
+    GLuint m_cone_vbo; // Stores id of vbo
+    GLuint m_cube_vbo; // Stores id of vbo
+    GLuint m_cyl_vbo; // Stores id of vbo
+    GLuint m_sphere_vbo; // Stores id of vbo
+    GLuint m_cone_vao; // Stores id of vao
+    GLuint m_cube_vao; // Stores id of vao
+    GLuint m_cyl_vao; // Stores id of vao
+    GLuint m_sphere_vao; // Stores id of vao
+    std::vector<GLfloat> m_coneData; // object space data
+    std::vector<GLfloat> m_cubeData;
+    std::vector<GLfloat> m_cylData;
+    std::vector<GLfloat> m_sphereData;
 };

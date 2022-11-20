@@ -4,7 +4,10 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <iostream>
+#include "glm/ext/matrix_clip_space.hpp"
 #include "settings.h"
+#include "utils/shaderloader.h"
+#include "shapes/allshapes.h"
 
 // ================== Project 5: Lights, Camera
 
@@ -30,6 +33,14 @@ void Realtime::finish() {
     this->makeCurrent();
 
     // Students: anything requiring OpenGL calls when the program exits should be done here
+    glDeleteBuffers(1, &m_cone_vbo);
+    glDeleteVertexArrays(1, &m_cone_vao);
+    glDeleteBuffers(1, &m_cube_vbo);
+    glDeleteVertexArrays(1, &m_cube_vao);
+    glDeleteBuffers(1, &m_cyl_vbo);
+    glDeleteVertexArrays(1, &m_cyl_vao);
+    glDeleteBuffers(1, &m_sphere_vbo);
+    glDeleteVertexArrays(1, &m_sphere_vao);
 
     this->doneCurrent();
 }
@@ -57,10 +68,158 @@ void Realtime::initializeGL() {
     glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
+    glClearColor(0, 0, 0, 1);
+
+    m_shader = ShaderLoader::createShaderProgram(":/resources/shaders/default.vert", ":/resources/shaders/default.frag");
 }
 
 void Realtime::paintGL() {
     // Students: anything requiring OpenGL calls every frame should be done here
+
+    // Clear screen color and depth before painting
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glm::mat4 model = glm::mat4(1.0f), view = glm::mat4(1.0f), proj = glm::mat4(1.0f);
+    int drawSize;
+    view = m_camera.getViewMatrix();
+    float *camPos = &(inverse(view) * m_camera.getEye())[0];
+    //m_camera.getPerspectiveMatrix();//
+    proj = m_camera.getPerspectiveMatrix();//glm::perspective(45.0f, m_camera.getAspectRatio(), settings.nearPlane, settings.farPlane);//m_camera.getPerspectiveMatrix(settings.nearPlane, settings.farPlane); // fix this later
+    glUseProgram(m_shader);
+
+    for (int i = 0; i < m_metaData.shapes.size(); ++i) {
+        model = m_metaData.shapes.at(i).ctm;
+
+        switch (m_metaData.shapes.at(i).primitive.type) {
+        case PrimitiveType::PRIMITIVE_CONE:
+            glBindVertexArray(m_cone_vao);
+            drawSize = m_coneData.size();
+            break;
+        case PrimitiveType::PRIMITIVE_CUBE:
+            glBindVertexArray(m_cube_vao);
+            drawSize = m_cubeData.size();
+            break;
+        case PrimitiveType::PRIMITIVE_CYLINDER:
+            glBindVertexArray(m_cyl_vao);
+            drawSize = m_cylData.size();
+            break;
+        case PrimitiveType::PRIMITIVE_SPHERE:
+            glBindVertexArray(m_sphere_vao);
+            drawSize = m_sphereData.size();
+            break;
+        default:
+            std::cerr << "unsupported shape" << std::endl;
+            break;
+        }
+
+        // model_mat uniform
+        GLint matrixLocationModel = glGetUniformLocation(m_shader, "model_mat");
+        if (matrixLocationModel != -1) {
+            glUniformMatrix4fv(matrixLocationModel, 1, GL_FALSE, &model[0][0]);
+        }
+        GLint matrixLocModelInv = glGetUniformLocation(m_shader, "inv_tran_model_mat");
+        if (matrixLocModelInv != -1) {
+            glm::mat3 inv = glm::inverse(glm::transpose(glm::mat3(model)));
+            glUniformMatrix3fv(matrixLocModelInv, 1, GL_FALSE, &inv[0][0]);
+        }
+
+        // view_mat uniform
+        GLint matrixLocationView = glGetUniformLocation(m_shader, "view_mat");
+        if (matrixLocationView != -1) {
+            glUniformMatrix4fv(matrixLocationView, 1, GL_FALSE, &view[0][0]);
+        }
+
+        // projection_mat uniform
+        GLint matrixLocationProj = glGetUniformLocation(m_shader, "projection_mat");
+        if (matrixLocationProj != -1) {
+            glUniformMatrix4fv(matrixLocationProj, 1, GL_FALSE, &proj[0][0]);
+        }
+
+        // pass in light data
+        GLint intLocationNumLights = glGetUniformLocation(m_shader, "numLights");
+        if (intLocationNumLights != -1) {
+            glUniform1i(intLocationNumLights, m_metaData.lights.size());
+        }
+        GLint intLocationType, vecLocationPos, vecLocationDir, vecLocationColor;
+        for (int i = 0; i < m_metaData.lights.size(); ++i) {
+            // light type
+            intLocationType = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].type").c_str());
+            if (intLocationNumLights != -1) {
+                switch (m_metaData.lights.at(i).type) {
+                case LightType::LIGHT_DIRECTIONAL:
+                    glUniform1i(intLocationType, 0);
+                    break;
+                default:
+                    glUniform1i(intLocationType, 3); // check if 3, means unsupported light
+                    break;
+                }
+            }
+            // light pos
+            vecLocationPos = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].pos").c_str());
+            if (vecLocationPos != -1) {
+                glUniform4fv(vecLocationPos, 1, &m_metaData.lights.at(i).pos[0]);
+            }
+            // light dir
+            vecLocationDir = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].dir").c_str());
+            if (vecLocationDir != -1) {
+                glUniform4fv(vecLocationDir, 1, &m_metaData.lights.at(i).dir[0]);
+            }
+            // light color
+            vecLocationColor = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].color").c_str());
+            if (vecLocationColor != -1) {
+                glUniform4fv(vecLocationColor, 1, &m_metaData.lights.at(i).color[0]);
+            }
+        }
+
+        // material factors
+        GLint floatLocationMaterialAmbO = glGetUniformLocation(m_shader, "material_ambO");
+        if (floatLocationMaterialAmbO != -1) {
+            glUniform4fv(floatLocationMaterialAmbO, 1, &m_metaData.shapes.at(i).primitive.material.cAmbient[0]);
+        }
+        GLint floatLocationMaterialDifO = glGetUniformLocation(m_shader, "material_difO");
+        if (floatLocationMaterialDifO != -1) {
+            glUniform4fv(floatLocationMaterialDifO, 1, &m_metaData.shapes.at(i).primitive.material.cDiffuse[0]);
+        }
+        GLint floatLocationMaterialSpecO = glGetUniformLocation(m_shader, "material_specO");
+        if (floatLocationMaterialSpecO != -1) {
+            glUniform4fv(floatLocationMaterialSpecO, 1, &m_metaData.shapes.at(i).primitive.material.cSpecular[0]);
+        }
+
+        // k_a
+        GLint floatLocation_ka = glGetUniformLocation(m_shader, "k_a");
+        if (floatLocation_ka != -1) {
+            glUniform1f(floatLocation_ka, m_metaData.globalData.ka);
+        }
+
+        // k_d
+        GLint floatLocation_kd = glGetUniformLocation(m_shader, "k_d");
+        if (floatLocation_kd != -1) {
+            glUniform1f(floatLocation_kd, m_metaData.globalData.kd);
+        }
+
+        // k_s
+        GLint floatLocation_ks = glGetUniformLocation(m_shader, "k_s");
+        if (floatLocation_ks != -1) {
+            glUniform1f(floatLocation_ks, m_metaData.globalData.ks);
+        }
+
+        // shiny factor
+        GLint floatLocation_N = glGetUniformLocation(m_shader, "shiny");
+        if (floatLocation_N != -1) {
+            glUniform1f(floatLocation_N, m_metaData.shapes.at(i).primitive.material.shininess);
+        }
+
+        // camera position
+        GLint vecLocation_camPos = glGetUniformLocation(m_shader, "camera_pos");
+        if (vecLocation_camPos != -1) {
+            glUniform4fv(vecLocation_camPos, 1, camPos);
+        }
+
+        glDrawArrays(GL_TRIANGLES, 0, drawSize / 6);
+
+        glBindVertexArray(0);
+
+    }
+    glUseProgram(0);
 }
 
 void Realtime::resizeGL(int w, int h) {
@@ -68,14 +227,136 @@ void Realtime::resizeGL(int w, int h) {
     glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
+    // TODO: reset projection matrix using glm::perspective equivalent
+    m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
+    m_camera.setViewMatrix();
+    m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
 }
 
 void Realtime::sceneChanged() {
+    // Camera and scene parser are the same as ray
+    //RenderData metadata;
+    m_metaData.lights.clear();
+    SceneParser::parse(settings.sceneFilePath, m_metaData);
+    m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
+    m_camera.setViewMatrix();
+    m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    //std::cout << m_metaData.lights.size() << std::endl;
+    settingsChanged();
 
     update(); // asks for a PaintGL() call to occur
 }
 
 void Realtime::settingsChanged() {
+    makeCurrent();
+
+    if (!glewExperimental) {
+        return;
+    }
+
+    m_camera.setViewMatrix();
+    m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+
+    Cone cone;
+    Cube cube;
+    Cylinder cyl;
+    Sphere sphere;
+
+    // CONE
+    // Generate and bind VBO
+    glGenBuffers(1, &m_cone_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_cone_vbo);
+    // Generate sphere data
+    cone.updateParams(settings.shapeParameter1, settings.shapeParameter2);
+    m_coneData = cone.generateShape();
+    // Send data to VBO
+    glBufferData(GL_ARRAY_BUFFER, m_coneData.size() * sizeof(GLfloat), m_coneData.data(), GL_STATIC_DRAW);
+    // Generate, and bind vao
+    glGenVertexArrays(1, &m_cone_vao);
+    glBindVertexArray(m_cone_vao);
+
+    // Enable and define attribute 0 to store vertex positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(0 * sizeof(GLfloat)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
+
+    // Clean-up bindings
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER,0);
+
+    // CUBE
+    // Generate and bind VBO
+    glGenBuffers(1, &m_cube_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_cube_vbo);
+    // Generate sphere data
+    cube.updateParams(settings.shapeParameter1);
+    m_cubeData = cube.generateShape();
+    // Send data to VBO
+    glBufferData(GL_ARRAY_BUFFER, m_cubeData.size() * sizeof(GLfloat), m_cubeData.data(), GL_STATIC_DRAW);
+    // Generate, and bind vao
+    glGenVertexArrays(1, &m_cube_vao);
+    glBindVertexArray(m_cube_vao);
+
+    // Enable and define attribute 0 to store vertex positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(0 * sizeof(GLfloat)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
+
+    // Clean-up bindings
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER,0);
+
+    // CYLINDER
+    // Generate and bind VBO
+    glGenBuffers(1, &m_cyl_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_cyl_vbo);
+    // Generate sphere data
+    cyl.updateParams(settings.shapeParameter1, settings.shapeParameter2);
+    m_cylData = cyl.generateShape();
+    // Send data to VBO
+    glBufferData(GL_ARRAY_BUFFER, m_cylData.size() * sizeof(GLfloat), m_cylData.data(), GL_STATIC_DRAW);
+    // Generate, and bind vao
+    glGenVertexArrays(1, &m_cyl_vao);
+    glBindVertexArray(m_cyl_vao);
+
+    // Enable and define attribute 0 to store vertex positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(0 * sizeof(GLfloat)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
+
+    // Clean-up bindings
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER,0);
+
+    // SPHERE
+    // Generate and bind VBO
+    glGenBuffers(1, &m_sphere_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_sphere_vbo);
+    // Generate sphere data
+    sphere.updateParams(settings.shapeParameter1, settings.shapeParameter2);
+    m_sphereData = sphere.generateShape();
+    // Send data to VBO
+    glBufferData(GL_ARRAY_BUFFER, m_sphereData.size() * sizeof(GLfloat), m_sphereData.data(), GL_STATIC_DRAW);
+    // Generate, and bind vao
+    glGenVertexArrays(1, &m_sphere_vao);
+    glBindVertexArray(m_sphere_vao);
+
+    // Enable and define attribute 0 to store vertex positions
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(0 * sizeof(GLfloat)));
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
+
+    // Clean-up bindings
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER,0);
 
     update(); // asks for a PaintGL() call to occur
 }

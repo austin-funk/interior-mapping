@@ -32,6 +32,12 @@ add_executable(${PROJECT_NAME}
     src/settings.cpp
     src/utils/scenefilereader.cpp
     src/utils/sceneparser.cpp
+    src/realtimescenedata.cpp
+    src/camera/camera.cpp
+    src/shapes/cube.cpp
+    src/shapes/cone.cpp
+    src/shapes/cylinder.cpp
+    src/shapes/sphere.cpp
 
     src/mainwindow.h
     src/realtime.h
@@ -40,6 +46,13 @@ add_executable(${PROJECT_NAME}
     src/utils/scenefilereader.h
     src/utils/sceneparser.h
     src/utils/shaderloader.h
+    src/realtimescenedata.h
+    src/camera/camera.h
+    src/shapes/cube.h
+    src/shapes/cone.h
+    src/shapes/cylinder.h
+    src/shapes/sphere.h
+    src/shapes/allshapes.h
 )
 
 # GLM: this creates its library and allows you to `#include "glm/..."`
