@@ -11,7 +11,6 @@ void Cube::makeTile(glm::vec3 topLeft,
                     glm::vec3 topRight,
                     glm::vec3 bottomLeft,
                     glm::vec3 bottomRight) {
-    // Task 2: create a tile (i.e. 2 triangles) based on 4 given points.
     // left triangle
     glm::vec3 normal = glm::normalize(glm::cross(bottomRight - bottomLeft, topLeft - bottomLeft));
     insertVec3(m_vertexData, topLeft);

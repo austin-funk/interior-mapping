@@ -1,7 +1,6 @@
 #pragma once
 
 // Defined before including GLEW to suppress deprecation messages on macOS
-#include "camera/camera.h"
 #include "utils/sceneparser.h"
 #ifdef __APPLE__
 #define GL_SILENCE_DEPRECATION

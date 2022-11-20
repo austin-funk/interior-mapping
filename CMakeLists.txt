@@ -32,7 +32,6 @@ add_executable(${PROJECT_NAME}
     src/settings.cpp
     src/utils/scenefilereader.cpp
     src/utils/sceneparser.cpp
-    src/realtimescenedata.cpp
     src/camera/camera.cpp
     src/shapes/cube.cpp
     src/shapes/cone.cpp
@@ -46,7 +45,6 @@ add_executable(${PROJECT_NAME}
     src/utils/scenefilereader.h
     src/utils/sceneparser.h
     src/utils/shaderloader.h
-    src/realtimescenedata.h
     src/camera/camera.h
     src/shapes/cube.h
     src/shapes/cone.h

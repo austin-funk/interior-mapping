@@ -8,7 +8,6 @@ void Cone::updateParams(int param1, int param2) {
     m_param1 = param1;
     m_param2 = param2;
     setVertexData();
-    // for now, return m_vertexData, but if its slow change to be a pointer we pass in
 }
 
 void Cone::makeTile(glm::vec3 topLeft,

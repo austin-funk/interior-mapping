@@ -19,7 +19,6 @@ glm::mat4 Camera::getViewMatrix() {
 }
 
 void Camera::setViewMatrix() {
-    // Optional TODO: implement the getter or make your own design
     // copied from lab 4
     glm::vec3 look3(look);
     glm::vec3 up3(up);
@@ -45,9 +44,12 @@ void Camera::setViewMatrix() {
     view = glm::transpose(glm::mat4(u, v, w, last_col)) * translation;
 }
 
+void Camera::setInverseViewMatrix() {
+    invView = glm::inverse(view);
+}
+
 glm::mat4 Camera::getInverseViewMatrix() {
-    // Optional TODO: implement the getter or make your own design
-    return glm::inverse(view);
+    return invView;
 }
 
 glm::mat4 Camera::getPerspectiveMatrix() {
@@ -78,12 +80,10 @@ void Camera::setPerspectiveMatrix(float near, float far) {
 }
 
 float Camera::getAspectRatio() const {
-    // Optional TODO: implement the getter or make your own design
     return (height != 0) ? (float)width / (float)height : 0;
 }
 
 float Camera::getHeightAngle() const {
-    // Optional TODO: implement the getter or make your own design
     return heightAngle;
 }
 
@@ -92,12 +92,10 @@ glm::vec4 Camera::getEye() const {
 }
 
 float Camera::getFocalLength() const {
-    // Optional TODO: implement the getter or make your own design
     return focalLength;
 }
 
 float Camera::getAperture() const {
-    // Optional TODO: implement the getter or make your own design
     return aperture;
 }
 

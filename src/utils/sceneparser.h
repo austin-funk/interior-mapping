@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scenedata.h"
+#include "camera/camera.h"
 #include <vector>
 #include <string>
 

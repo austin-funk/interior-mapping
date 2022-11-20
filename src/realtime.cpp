@@ -78,17 +78,25 @@ void Realtime::paintGL() {
 
     // Clear screen color and depth before painting
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // define model, view, and projection matrices
     glm::mat4 model = glm::mat4(1.0f), view = glm::mat4(1.0f), proj = glm::mat4(1.0f);
+    // size of vbo data
     int drawSize;
+    // view matrix, reset every time settings/scene are changed
     view = m_camera.getViewMatrix();
-    float *camPos = &(inverse(view) * m_camera.getEye())[0];
-    //m_camera.getPerspectiveMatrix();//
-    proj = m_camera.getPerspectiveMatrix();//glm::perspective(45.0f, m_camera.getAspectRatio(), settings.nearPlane, settings.farPlane);//m_camera.getPerspectiveMatrix(settings.nearPlane, settings.farPlane); // fix this later
+    // assigns world space camera position
+    float *camPos = &(m_camera.getInverseViewMatrix() * m_camera.getEye())[0];
+    // projection matrix, reset every time settings/scene are changed
+    proj = m_camera.getPerspectiveMatrix();
+    // tell openGL which shader to use
     glUseProgram(m_shader);
 
+    // iterate through every shape
     for (int i = 0; i < m_metaData.shapes.size(); ++i) {
+        // set model matrix, resets with every shape
         model = m_metaData.shapes.at(i).ctm;
 
+        // activate a different vao depending on the shape
         switch (m_metaData.shapes.at(i).primitive.type) {
         case PrimitiveType::PRIMITIVE_CONE:
             glBindVertexArray(m_cone_vao);
@@ -235,13 +243,12 @@ void Realtime::resizeGL(int w, int h) {
 
 void Realtime::sceneChanged() {
     // Camera and scene parser are the same as ray
-    //RenderData metadata;
     m_metaData.lights.clear();
+
     SceneParser::parse(settings.sceneFilePath, m_metaData);
+
     m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
-    m_camera.setViewMatrix();
-    m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
-    //std::cout << m_metaData.lights.size() << std::endl;
+
     settingsChanged();
 
     update(); // asks for a PaintGL() call to occur
@@ -255,6 +262,7 @@ void Realtime::settingsChanged() {
     }
 
     m_camera.setViewMatrix();
+    m_camera.setInverseViewMatrix();
     m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
 
     Cone cone;
