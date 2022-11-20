@@ -76,7 +76,7 @@ void main() {
         addedIllum += (k_a * material_ambO);
 
         // diffuse term
-        float NdotL = dot(world_norm, L);
+        float NdotL = dot(normalize(world_norm), L);
         vec4 trueColor = k_d * material_difO;
         NdotL = (NdotL < 0) ? 0 : NdotL;
         NdotL = (NdotL > 1) ? 1 : NdotL;
@@ -96,7 +96,7 @@ void main() {
 
 
         // specular term
-        vec3 R = reflect(L, world_norm);
+        vec3 R = reflect(L, normalize(world_norm));
         float RdotDirCam = dot(R, normalize(world_pos - vec3(camera_pos)));//dot(R, vec3(camera_pos) - world_pos); // check this
         RdotDirCam = (RdotDirCam < 0.0f) ? 0.0f : RdotDirCam;
         RdotDirCam = (RdotDirCam > 1.0f) ? 1.0f : RdotDirCam;
