@@ -12,6 +12,9 @@ struct light {
     vec4 pos;
     vec4 dir;
     vec4 color;
+    vec3 point_coeffs;
+    float angle;
+    float penumbra;
 };
 
 // light data
@@ -39,13 +42,48 @@ void main() {
     vec3 L;
     float fatt;
     float spotlightFactor;
+    float dist;
+
+    bool brk = false;
+
+    vec3 w_norm = normalize(world_norm);
 
     for (int i = 0; i < numLights; ++i) {
+        // spotlight factor
         spotlightFactor = 1.0f;
-        if (lights[i].type == 0) {
+
+        switch (lights[i].type) {
+        case 0: // directional light
             L = normalize(vec3(-lights[i].dir));
             fatt = 1.0f;
-        } else {
+            break;
+        case 1: // point light
+            fatt = min(1.0f,
+                       1.0f / (lights[i].point_coeffs.x + (dist * lights[i].point_coeffs.y) + (pow(dist, 2) * lights[i].point_coeffs.z)));
+            L = normalize(vec3(lights[i].pos) - world_pos);
+            break;
+        case 2: // spot light
+            dist = length(vec3(lights[i].pos) - world_pos);
+            fatt = min(1.0f,
+                       1.0f / (lights[i].point_coeffs.x + (dist * lights[i].point_coeffs.y) + (pow(dist, 2) * lights[i].point_coeffs.z)));
+            L = normalize(vec3(lights[i].pos) - world_pos);
+            float x = acos(dot(L, vec3(-lights[i].dir)));
+            float thetaInner = lights[i].angle - lights[i].penumbra;
+            if (x > lights[i].angle) {
+                spotlightFactor = 0;
+            } else if (x > thetaInner) {
+                float angleDif = (x - thetaInner) / (lights[i].penumbra);
+                float falloff = (-2 * pow(angleDif, 3)) + (3 * pow(angleDif, 2));
+                spotlightFactor = 1 - falloff;
+            }
+            break;
+        default: // not a light
+            brk = true;
+            break;
+        }
+
+        if (brk) {
+            brk = false;
             continue;
         }
 
@@ -53,18 +91,17 @@ void main() {
         addedIllum += (k_a * material_ambO);
 
         // diffuse term
-        float NdotL = dot(normalize(world_norm), L);
+        float NdotL = dot(w_norm, L);
         vec4 trueColor = k_d * material_difO;
-        NdotL = (NdotL < 0) ? 0 : NdotL;
         NdotL = (NdotL > 1) ? 1 : NdotL;
         addedIllum +=  (NdotL >= 0) ? (fatt * lights[i].color * trueColor * NdotL) : vec4(0, 0, 0, 0);
 
         // specular term
-        vec3 R = reflect(L, normalize(world_norm));
+        vec3 R = reflect(L, w_norm);
         float RdotDirCam = dot(R, normalize(world_pos - vec3(camera_pos)));
         RdotDirCam = (RdotDirCam < 0.0f) ? 0.0f : RdotDirCam;
         RdotDirCam = (RdotDirCam > 1.0f) ? 1.0f : RdotDirCam;
-        float shinyPower = (RdotDirCam == 0.0f && shiny == 0.0f) ? 0.0f : pow(RdotDirCam, shiny);
+        float shinyPower = (RdotDirCam == 0.0f) ? 0.0f : pow(RdotDirCam, shiny);// && shiny == 0.0f
         addedIllum += (fatt * lights[i].color * k_s * shinyPower * material_specO);
 
         illum += (addedIllum * spotlightFactor);

@@ -31,6 +31,13 @@ public:
     void setPerspectiveMatrix(float near, float far);
     glm::mat4 getPerspectiveMatrix();
 
+    // change position, look, up
+    glm::vec4 getLook();
+    glm::vec4 getUp();
+    void changePos(glm::vec4 change);
+    void replaceLook(glm::vec4 newLook);
+    void replaceUp(glm::vec4 newUp);
+
     // Returns the aspect ratio of the camera.
     float getAspectRatio() const;
 

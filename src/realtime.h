@@ -53,6 +53,8 @@ private:
     // metadata
     RenderData m_metaData;
     Camera m_camera = Camera(100, 100, m_metaData.cameraData);
+    glm::mat3 rotateAboutAxis(glm::vec3 axis, float theta);
+    glm::mat3 rotateAboutYAxis(float theta);
 
     // Shader stuff
     GLuint m_shader;

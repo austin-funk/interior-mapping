@@ -79,6 +79,28 @@ void Camera::setPerspectiveMatrix(float near, float far) {
     proj = zMap * Mpp * scale;
 }
 
+glm::vec4 Camera::getLook() {
+    return look;
+}
+
+glm::vec4 Camera::getUp() {
+    return up;
+}
+
+void Camera::changePos(glm::vec4 change) {
+    pos += change;
+    setViewMatrix();
+    setInverseViewMatrix();
+}
+
+void Camera::replaceLook(glm::vec4 newLook) {
+    look = newLook;
+}
+
+void Camera::replaceUp(glm::vec4 newUp) {
+    up = newUp;
+}
+
 float Camera::getAspectRatio() const {
     return (height != 0) ? (float)width / (float)height : 0;
 }

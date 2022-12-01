@@ -45,6 +45,41 @@ void Realtime::finish() {
     this->doneCurrent();
 }
 
+glm::mat3 Realtime::rotateAboutAxis(glm::vec3 axis, float theta) {
+    glm::mat3 rodrigues = glm::mat3(1.0f);
+
+    float costheta = cos(theta);
+    float sintheta = sin(theta);
+
+    axis = glm::normalize(axis);
+
+    // r, c
+    rodrigues = {costheta + (powf(axis.x, 2) * (1 - costheta)), // 0,0
+                (axis.x * axis.y * (1 - costheta)) + (axis.z * sintheta), // 1,0
+                (axis.x * axis.z * (1 - costheta)) - (axis.y * sintheta), // 2,0
+                (axis.x * axis.y * (1 - costheta)) - (axis.z * sintheta), // 0,1
+                 costheta + (powf(axis.y, 2) * (1 - costheta)), // 1,1
+                (axis.y * axis.z * (1 - costheta)) + (axis.x * sintheta), // 2,1
+                (axis.x * axis.z * (1 - costheta)) + (axis.y * sintheta), // 0,2
+                (axis.y * axis.z * (1 - costheta)) - (axis.x * sintheta), // 1,2
+                 costheta + (powf(axis.z, 2) * (1 - costheta))}; // 2,2
+
+    return rodrigues;
+}
+
+glm::mat3 Realtime::rotateAboutYAxis(float theta) {
+    glm::mat3 rodrigues = glm::mat3(1.0f);
+
+    float costheta = cos(theta);
+    float sintheta = sin(theta);
+
+    rodrigues = {costheta, 0, -sintheta, // column 1
+                0, 1, 0, // column 2
+                sintheta, 0, costheta}; // column 3
+
+    return rodrigues;
+}
+
 void Realtime::initializeGL() {
     m_devicePixelRatio = this->devicePixelRatio();
 
@@ -126,7 +161,7 @@ void Realtime::paintGL() {
         }
         GLint matrixLocModelInv = glGetUniformLocation(m_shader, "inv_tran_model_mat");
         if (matrixLocModelInv != -1) {
-            glm::mat3 inv = glm::inverse(glm::transpose(glm::mat3(model)));
+            glm::mat3 inv = glm::mat3(glm::inverse(glm::transpose(model)));//glm::mat3()
             glUniformMatrix3fv(matrixLocModelInv, 1, GL_FALSE, &inv[0][0]);
         }
 
@@ -144,38 +179,70 @@ void Realtime::paintGL() {
 
         // pass in light data
         GLint intLocationNumLights = glGetUniformLocation(m_shader, "numLights");
-        if (intLocationNumLights != -1) {
-            glUniform1i(intLocationNumLights, m_metaData.lights.size());
-        }
-        GLint intLocationType, vecLocationPos, vecLocationDir, vecLocationColor;
+        GLint intLocationType, vecLocationPos, vecLocationDir, vecLocationColor, vecLocationCoeffs, vecLocationAngle, vecLocationPenumbra;
+        int numLight = 0;
+        bool inc = true;
         for (int i = 0; i < m_metaData.lights.size(); ++i) {
+            if (numLight > 7) {
+                break;
+            }
             // light type
-            intLocationType = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].type").c_str());
+            intLocationType = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].type").c_str());
             if (intLocationNumLights != -1) {
                 switch (m_metaData.lights.at(i).type) {
                 case LightType::LIGHT_DIRECTIONAL:
                     glUniform1i(intLocationType, 0);
                     break;
+                case LightType::LIGHT_POINT:
+                    glUniform1i(intLocationType, 1);
+                    break;
+                case LightType::LIGHT_SPOT:
+                    glUniform1i(intLocationType, 2);
+                    break;
                 default:
                     glUniform1i(intLocationType, 3); // check if 3, means unsupported light
+                    inc = false;
                     break;
                 }
             }
+            if (!inc) {
+                continue;
+            }
             // light pos
-            vecLocationPos = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].pos").c_str());
+            vecLocationPos = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].pos").c_str());
             if (vecLocationPos != -1) {
                 glUniform4fv(vecLocationPos, 1, &m_metaData.lights.at(i).pos[0]);
             }
             // light dir
-            vecLocationDir = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].dir").c_str());
+            vecLocationDir = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].dir").c_str());
             if (vecLocationDir != -1) {
                 glUniform4fv(vecLocationDir, 1, &m_metaData.lights.at(i).dir[0]);
             }
             // light color
-            vecLocationColor = glGetUniformLocation(m_shader, ("lights[" + std::to_string(i) + "].color").c_str());
+            vecLocationColor = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].color").c_str());
             if (vecLocationColor != -1) {
                 glUniform4fv(vecLocationColor, 1, &m_metaData.lights.at(i).color[0]);
             }
+            // point coeffs
+            vecLocationCoeffs = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].point_coeffs").c_str());
+            if (vecLocationCoeffs != -1) {
+                glUniform3fv(vecLocationCoeffs, 1, &m_metaData.lights.at(i).function[0]);
+            }
+            // light angle
+            vecLocationAngle = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].angle").c_str());
+            if (vecLocationAngle != -1) {
+                glUniform1f(vecLocationAngle, m_metaData.lights.at(i).angle);
+            }
+            // light penumbra
+            vecLocationPenumbra = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].penumbra").c_str());
+            if (vecLocationPenumbra != -1) {
+                glUniform1f(vecLocationPenumbra, m_metaData.lights.at(i).penumbra);
+            }
+            numLight++;
+        }
+        // set numLights
+        if (intLocationNumLights != -1) {
+            glUniform1i(intLocationNumLights, numLight + 1);
         }
 
         // material factors
@@ -238,6 +305,7 @@ void Realtime::resizeGL(int w, int h) {
     // TODO: reset projection matrix using glm::perspective equivalent
     m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
     m_camera.setViewMatrix();
+    m_camera.setInverseViewMatrix();
     m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
 }
 
@@ -401,6 +469,18 @@ void Realtime::mouseMoveEvent(QMouseEvent *event) {
         m_prev_mouse_pos = glm::vec2(posX, posY);
 
         // Use deltaX and deltaY here to rotate
+        glm::mat3 xShift = rotateAboutYAxis(-deltaX * 0.005);
+        glm::vec3 crossed = glm::cross(glm::vec3(m_camera.getLook()), glm::vec3(m_camera.getUp()));
+        glm::mat3 yShift = rotateAboutAxis(crossed, -deltaY * 0.005);
+
+        glm::vec4 newLook = glm::vec4(yShift * xShift * glm::vec3(m_camera.getLook()), 1);
+        glm::vec4 newUp = glm::vec4(yShift * xShift * glm::vec3(m_camera.getUp()), 1);
+
+        m_camera.replaceLook(newLook);
+        m_camera.replaceUp(newUp);
+
+        m_camera.setViewMatrix();
+        m_camera.setInverseViewMatrix();
 
         update(); // asks for a PaintGL() call to occur
     }
@@ -412,6 +492,32 @@ void Realtime::timerEvent(QTimerEvent *event) {
     m_elapsedTimer.restart();
 
     // Use deltaTime and m_keyMap here to move around
+    if (m_keyMap[Qt::Key_W]) {
+        m_camera.changePos(glm::normalize(m_camera.getLook()) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
+    if (m_keyMap[Qt::Key_S]) {
+        m_camera.changePos(-glm::normalize(m_camera.getLook()) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
+    if (m_keyMap[Qt::Key_A]) {
+        glm::vec3 crossed = glm::cross(glm::vec3(m_camera.getUp()), glm::vec3(m_camera.getLook()));
+        m_camera.changePos(glm::vec4(glm::normalize(crossed), 0) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
+    if (m_keyMap[Qt::Key_D]) {
+        glm::vec3 crossed = glm::cross(glm::vec3(m_camera.getLook()), glm::vec3(m_camera.getUp()));
+        m_camera.changePos(glm::vec4(glm::normalize(crossed), 0) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
+    if (m_keyMap[Qt::Key_Space]) {
+        m_camera.changePos(glm::vec4(0, 1, 0, 0) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
+    if (m_keyMap[Qt::Key_Control]) {
+        m_camera.changePos(glm::vec4(0, -1, 0, 0) * (5 * deltaTime));
+        m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);
+    }
 
     update(); // asks for a PaintGL() call to occur
 }
