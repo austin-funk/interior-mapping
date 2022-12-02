@@ -113,6 +113,14 @@ glm::vec4 Camera::getEye() const {
     return pos;
 }
 
+void Camera::setWidth(int w) {
+    width = w;
+}
+
+void Camera::setHeight(int h) {
+    height = h;
+}
+
 float Camera::getFocalLength() const {
     return focalLength;
 }

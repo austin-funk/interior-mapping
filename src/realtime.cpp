@@ -459,7 +459,8 @@ void Realtime::resizeGL(int w, int h) {
     makeFBO();
 
     // reset projection matrix using glm::perspective equivalent
-    m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
+    m_camera.setWidth(size().width());
+    m_camera.setHeight(size().height());
     m_camera.setViewMatrix();
     m_camera.setInverseViewMatrix();
     m_camera.setPerspectiveMatrix(settings.nearPlane, settings.farPlane);

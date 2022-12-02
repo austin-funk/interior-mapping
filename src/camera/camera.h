@@ -47,6 +47,10 @@ public:
     // Returns the position of the camera in camera space
     glm::vec4 getEye() const;
 
+    // Set width and height
+    void setWidth(int w);
+    void setHeight(int h);
+
     // Returns the focal length of this camera.
     // This is for the depth of field extra-credit feature only;
     // You can ignore if you are not attempting to implement depth of field.
