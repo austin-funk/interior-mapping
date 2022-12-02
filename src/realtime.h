@@ -50,6 +50,9 @@ private:
     // Device Correction Variables
     int m_devicePixelRatio;
 
+    // my methods
+    void paintScene();
+
     // metadata
     RenderData m_metaData;
     Camera m_camera = Camera(100, 100, m_metaData.cameraData);
@@ -57,7 +60,20 @@ private:
     glm::mat3 rotateAboutYAxis(float theta);
 
     // Shader stuff
-    GLuint m_shader;
+    GLuint m_phong_shader;
+    GLuint m_texture_shader;
+
+    // FBO stuff
+    void makeFBO();
+    void paintTexture(GLuint texture);
+    int m_fbo_width;
+    int m_fbo_height;
+    GLuint m_fbo;
+    GLuint m_fbo_texture;
+    GLuint m_fbo_renderbuffer;
+    GLuint m_defaultFBO;
+    GLuint m_fullscreen_vbo;
+    GLuint m_fullscreen_vao;
 
     // VBO/VAO for shapes
     GLuint m_cone_vbo; // Stores id of vbo

@@ -1,5 +1,4 @@
 #include "realtime.h"
-
 #include <QCoreApplication>
 #include <QMouseEvent>
 #include <QKeyEvent>
@@ -33,6 +32,7 @@ void Realtime::finish() {
     this->makeCurrent();
 
     // Students: anything requiring OpenGL calls when the program exits should be done here
+    // delete vbo/vao stuff
     glDeleteBuffers(1, &m_cone_vbo);
     glDeleteVertexArrays(1, &m_cone_vao);
     glDeleteBuffers(1, &m_cube_vbo);
@@ -41,6 +41,12 @@ void Realtime::finish() {
     glDeleteVertexArrays(1, &m_cyl_vao);
     glDeleteBuffers(1, &m_sphere_vbo);
     glDeleteVertexArrays(1, &m_sphere_vao);
+
+    // delete fbo stuff
+    // glDeleteTextures(1, &m_kitten_texture);
+    glDeleteTextures(1, &m_fbo_texture);
+    glDeleteRenderbuffers(1, &m_fbo_renderbuffer);
+    glDeleteFramebuffers(1, &m_fbo);
 
     this->doneCurrent();
 }
@@ -103,15 +109,65 @@ void Realtime::initializeGL() {
     glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
+    m_defaultFBO = 2;
+    m_fbo_width = size().width();
+    m_fbo_height = size().height();
+
     glClearColor(0, 0, 0, 1);
 
-    m_shader = ShaderLoader::createShaderProgram(":/resources/shaders/default.vert", ":/resources/shaders/default.frag");
+    m_phong_shader = ShaderLoader::createShaderProgram(":/resources/shaders/default.vert", ":/resources/shaders/default.frag");
+    m_texture_shader = ShaderLoader::createShaderProgram(":/resources/shaders/texture.vert", ":/resources/shaders/texture.frag");
+
+    glUseProgram(m_texture_shader);
+    GLint texture0Loc = glGetUniformLocation(m_texture_shader, "kitten");
+    if (texture0Loc != -1) {
+        glUniform1i(texture0Loc, 0);
+    }
+
+
+    // Task 11: Fix this "fullscreen" quad's vertex data
+    // Task 12: Play around with different values!
+    // Task 13: Add UV coordinates
+    std::vector<GLfloat> fullscreen_quad_data =
+    { //     POSITIONS    //
+        -1.0f,  1.0f, 0.0f,
+         0.0f,  1.0f,//
+        -1.0f, -1.0f, 0.0f,
+         0.0f,  0.0f,//
+         1.0f, -1.0f, 0.0f,
+         1.0f,  0.0f,//
+         1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,//
+        -1.0f,  1.0f, 0.0f,
+         0.0f,  1.0f,//
+         1.0f, -1.0f, 0.0f,
+         1.0f,  0.0f//
+    };
+
+    // Generate and bind a VBO and a VAO for a fullscreen quad
+    glGenBuffers(1, &m_fullscreen_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, m_fullscreen_vbo);
+    glBufferData(GL_ARRAY_BUFFER, fullscreen_quad_data.size()*sizeof(GLfloat), fullscreen_quad_data.data(), GL_STATIC_DRAW);
+    glGenVertexArrays(1, &m_fullscreen_vao);
+    glBindVertexArray(m_fullscreen_vao);
+
+    // Task 14: modify the code below to add a second attribute to the vertex attribute array
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), reinterpret_cast<void *>(0 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
+
+    // Unbind the fullscreen quad's VBO and VAO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    glUseProgram(0);
+
+    makeFBO();
 }
 
-void Realtime::paintGL() {
-    // Students: anything requiring OpenGL calls every frame should be done here
-
-    // Clear screen color and depth before painting
+void Realtime::paintScene() {
+    // clear
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // define model, view, and projection matrices
     glm::mat4 model = glm::mat4(1.0f), view = glm::mat4(1.0f), proj = glm::mat4(1.0f);
@@ -120,11 +176,11 @@ void Realtime::paintGL() {
     // view matrix, reset every time settings/scene are changed
     view = m_camera.getViewMatrix();
     // assigns world space camera position
-    float *camPos = &(m_camera.getInverseViewMatrix() * m_camera.getEye())[0];
+    float *camPos = &(m_camera.getEye())[0];//m_camera.getEye()
     // projection matrix, reset every time settings/scene are changed
     proj = m_camera.getPerspectiveMatrix();
     // tell openGL which shader to use
-    glUseProgram(m_shader);
+    glUseProgram(m_phong_shader);
 
     // iterate through every shape
     for (int i = 0; i < m_metaData.shapes.size(); ++i) {
@@ -155,30 +211,30 @@ void Realtime::paintGL() {
         }
 
         // model_mat uniform
-        GLint matrixLocationModel = glGetUniformLocation(m_shader, "model_mat");
+        GLint matrixLocationModel = glGetUniformLocation(m_phong_shader, "model_mat");
         if (matrixLocationModel != -1) {
             glUniformMatrix4fv(matrixLocationModel, 1, GL_FALSE, &model[0][0]);
         }
-        GLint matrixLocModelInv = glGetUniformLocation(m_shader, "inv_tran_model_mat");
+        GLint matrixLocModelInv = glGetUniformLocation(m_phong_shader, "inv_tran_model_mat");
         if (matrixLocModelInv != -1) {
-            glm::mat3 inv = glm::mat3(glm::inverse(glm::transpose(model)));//glm::mat3()
-            glUniformMatrix3fv(matrixLocModelInv, 1, GL_FALSE, &inv[0][0]);
+            glm::mat4 inv = glm::transpose(glm::inverse(model));//glm::mat3()
+            glUniformMatrix4fv(matrixLocModelInv, 1, GL_FALSE, &inv[0][0]);
         }
 
         // view_mat uniform
-        GLint matrixLocationView = glGetUniformLocation(m_shader, "view_mat");
+        GLint matrixLocationView = glGetUniformLocation(m_phong_shader, "view_mat");
         if (matrixLocationView != -1) {
             glUniformMatrix4fv(matrixLocationView, 1, GL_FALSE, &view[0][0]);
         }
 
         // projection_mat uniform
-        GLint matrixLocationProj = glGetUniformLocation(m_shader, "projection_mat");
+        GLint matrixLocationProj = glGetUniformLocation(m_phong_shader, "projection_mat");
         if (matrixLocationProj != -1) {
             glUniformMatrix4fv(matrixLocationProj, 1, GL_FALSE, &proj[0][0]);
         }
 
         // pass in light data
-        GLint intLocationNumLights = glGetUniformLocation(m_shader, "numLights");
+        GLint intLocationNumLights = glGetUniformLocation(m_phong_shader, "numLights");
         GLint intLocationType, vecLocationPos, vecLocationDir, vecLocationColor, vecLocationCoeffs, vecLocationAngle, vecLocationPenumbra;
         int numLight = 0;
         bool inc = true;
@@ -187,7 +243,7 @@ void Realtime::paintGL() {
                 break;
             }
             // light type
-            intLocationType = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].type").c_str());
+            intLocationType = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].type").c_str());
             if (intLocationNumLights != -1) {
                 switch (m_metaData.lights.at(i).type) {
                 case LightType::LIGHT_DIRECTIONAL:
@@ -209,32 +265,32 @@ void Realtime::paintGL() {
                 continue;
             }
             // light pos
-            vecLocationPos = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].pos").c_str());
+            vecLocationPos = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].pos").c_str());
             if (vecLocationPos != -1) {
                 glUniform4fv(vecLocationPos, 1, &m_metaData.lights.at(i).pos[0]);
             }
             // light dir
-            vecLocationDir = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].dir").c_str());
+            vecLocationDir = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].dir").c_str());
             if (vecLocationDir != -1) {
                 glUniform4fv(vecLocationDir, 1, &m_metaData.lights.at(i).dir[0]);
             }
             // light color
-            vecLocationColor = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].color").c_str());
+            vecLocationColor = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].color").c_str());
             if (vecLocationColor != -1) {
                 glUniform4fv(vecLocationColor, 1, &m_metaData.lights.at(i).color[0]);
             }
             // point coeffs
-            vecLocationCoeffs = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].point_coeffs").c_str());
+            vecLocationCoeffs = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].point_coeffs").c_str());
             if (vecLocationCoeffs != -1) {
                 glUniform3fv(vecLocationCoeffs, 1, &m_metaData.lights.at(i).function[0]);
             }
             // light angle
-            vecLocationAngle = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].angle").c_str());
+            vecLocationAngle = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].angle").c_str());
             if (vecLocationAngle != -1) {
                 glUniform1f(vecLocationAngle, m_metaData.lights.at(i).angle);
             }
             // light penumbra
-            vecLocationPenumbra = glGetUniformLocation(m_shader, ("lights[" + std::to_string(numLight) + "].penumbra").c_str());
+            vecLocationPenumbra = glGetUniformLocation(m_phong_shader, ("lights[" + std::to_string(numLight) + "].penumbra").c_str());
             if (vecLocationPenumbra != -1) {
                 glUniform1f(vecLocationPenumbra, m_metaData.lights.at(i).penumbra);
             }
@@ -242,51 +298,57 @@ void Realtime::paintGL() {
         }
         // set numLights
         if (intLocationNumLights != -1) {
-            glUniform1i(intLocationNumLights, numLight + 1);
+            glUniform1i(intLocationNumLights, numLight);
         }
 
         // material factors
-        GLint floatLocationMaterialAmbO = glGetUniformLocation(m_shader, "material_ambO");
+        GLint floatLocationMaterialAmbO = glGetUniformLocation(m_phong_shader, "material_ambO");
         if (floatLocationMaterialAmbO != -1) {
             glUniform4fv(floatLocationMaterialAmbO, 1, &m_metaData.shapes.at(i).primitive.material.cAmbient[0]);
         }
-        GLint floatLocationMaterialDifO = glGetUniformLocation(m_shader, "material_difO");
+        GLint floatLocationMaterialDifO = glGetUniformLocation(m_phong_shader, "material_difO");
         if (floatLocationMaterialDifO != -1) {
             glUniform4fv(floatLocationMaterialDifO, 1, &m_metaData.shapes.at(i).primitive.material.cDiffuse[0]);
         }
-        GLint floatLocationMaterialSpecO = glGetUniformLocation(m_shader, "material_specO");
+        GLint floatLocationMaterialSpecO = glGetUniformLocation(m_phong_shader, "material_specO");
         if (floatLocationMaterialSpecO != -1) {
             glUniform4fv(floatLocationMaterialSpecO, 1, &m_metaData.shapes.at(i).primitive.material.cSpecular[0]);
         }
 
         // k_a
-        GLint floatLocation_ka = glGetUniformLocation(m_shader, "k_a");
+        GLint floatLocation_ka = glGetUniformLocation(m_phong_shader, "k_a");
         if (floatLocation_ka != -1) {
             glUniform1f(floatLocation_ka, m_metaData.globalData.ka);
         }
 
         // k_d
-        GLint floatLocation_kd = glGetUniformLocation(m_shader, "k_d");
+        GLint floatLocation_kd = glGetUniformLocation(m_phong_shader, "k_d");
         if (floatLocation_kd != -1) {
             glUniform1f(floatLocation_kd, m_metaData.globalData.kd);
         }
 
         // k_s
-        GLint floatLocation_ks = glGetUniformLocation(m_shader, "k_s");
+        GLint floatLocation_ks = glGetUniformLocation(m_phong_shader, "k_s");
         if (floatLocation_ks != -1) {
             glUniform1f(floatLocation_ks, m_metaData.globalData.ks);
         }
 
         // shiny factor
-        GLint floatLocation_N = glGetUniformLocation(m_shader, "shiny");
+        GLint floatLocation_N = glGetUniformLocation(m_phong_shader, "shiny");
         if (floatLocation_N != -1) {
             glUniform1f(floatLocation_N, m_metaData.shapes.at(i).primitive.material.shininess);
         }
 
         // camera position
-        GLint vecLocation_camPos = glGetUniformLocation(m_shader, "camera_pos");
+        GLint vecLocation_camPos = glGetUniformLocation(m_phong_shader, "camera_pos");
         if (vecLocation_camPos != -1) {
             glUniform4fv(vecLocation_camPos, 1, camPos);
+        }
+
+        // invert
+        GLint invertLocation = glGetUniformLocation(m_phong_shader, "invert");
+        if (invertLocation != -1) {
+            glUniform1i(invertLocation, settings.perPixelFilter);
         }
 
         glDrawArrays(GL_TRIANGLES, 0, drawSize / 6);
@@ -297,12 +359,106 @@ void Realtime::paintGL() {
     glUseProgram(0);
 }
 
+void Realtime::makeFBO(){
+    // Task 19: Generate and bind an empty texture, set its min/mag filter interpolation, then unbind
+    glGenTextures(1, &m_fbo_texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_fbo_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_fbo_width, m_fbo_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Task 20: Generate and bind a renderbuffer of the right size, set its format, then unbind
+    glGenRenderbuffers(1, &m_fbo_renderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, m_fbo_renderbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_fbo_width, m_fbo_height);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    // Task 18: Generate and bind an FBO
+    glGenFramebuffers(1, &m_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+    // Task 21: Add our texture as a color attachment, and our renderbuffer as a depth+stencil attachment, to our FBO
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo_texture, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_fbo_renderbuffer);
+
+    // Task 22: Unbind the FBO
+    glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
+}
+
+void Realtime::paintGL() {
+    // Students: anything requiring OpenGL calls every frame should be done here
+    // remove this later
+//    if (settings.perPixelFilter) {
+//        glClearColor(1, 1, 1, 1);
+//    } else {
+//        glClearColor(0, 0, 0, 1);
+//    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
+    glViewport(0, 0, m_fbo_width, m_fbo_height);
+
+    // Clear screen color and depth before painting
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    paintScene();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_defaultFBO);
+    glViewport(0, 0, size().width(), size().height());
+
+    // Task 26: Clear the color and depth buffers
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Task 27: Call paintTexture to draw our FBO color attachment texture | Task 31: Set bool parameter to true
+    paintTexture(m_fbo_texture);
+}
+
+void Realtime::paintTexture(GLuint texture){
+    glUseProgram(m_texture_shader);
+    // pass in processing bools
+    GLint ppLoc = glGetUniformLocation(m_texture_shader, "pixel_processing");
+    if (ppLoc != -1) {
+        glUniform1i(ppLoc, settings.perPixelFilter);
+    }
+    GLint kppLoc = glGetUniformLocation(m_texture_shader, "filter_processing");
+    if (kppLoc != -1) {
+        glUniform1i(kppLoc, settings.kernelBasedFilter);
+    }
+    // width and height
+    GLint widLoc = glGetUniformLocation(m_texture_shader, "width");
+    if (widLoc != -1) {
+        glUniform1f(widLoc, (float)m_fbo_width);
+    }
+    GLint hLoc = glGetUniformLocation(m_texture_shader, "height");
+    if (hLoc != -1) {
+        glUniform1f(hLoc, (float)m_fbo_height);
+    }
+
+    glBindVertexArray(m_fullscreen_vao);
+    // Task 10: Bind "texture" to slot 0
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
 void Realtime::resizeGL(int w, int h) {
     // Tells OpenGL how big the screen is
     glViewport(0, 0, size().width() * m_devicePixelRatio, size().height() * m_devicePixelRatio);
 
     // Students: anything requiring OpenGL calls when the program starts should be done here
-    // TODO: reset projection matrix using glm::perspective equivalent
+    m_fbo_width = size().width();
+    m_fbo_height = size().height();
+    // Task 34: Regenerate your FBOs
+    glDeleteTextures(1, &m_fbo_texture);
+    glDeleteRenderbuffers(1, &m_fbo_renderbuffer);
+    glDeleteFramebuffers(1, &m_fbo);
+    makeFBO();
+
+    // reset projection matrix using glm::perspective equivalent
     m_camera = Camera(size().width(), size().height(), m_metaData.cameraData);
     m_camera.setViewMatrix();
     m_camera.setInverseViewMatrix();
@@ -328,6 +484,14 @@ void Realtime::settingsChanged() {
     if (!glewExperimental) {
         return;
     }
+
+    m_fbo_width = size().width();
+    m_fbo_height = size().height();
+    // Task 34: Regenerate your FBOs
+    glDeleteTextures(1, &m_fbo_texture);
+    glDeleteRenderbuffers(1, &m_fbo_renderbuffer);
+    glDeleteFramebuffers(1, &m_fbo);
+    makeFBO();
 
     m_camera.setViewMatrix();
     m_camera.setInverseViewMatrix();

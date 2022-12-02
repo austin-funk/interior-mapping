@@ -6,6 +6,8 @@
 #include <QSettings>
 
 int main(int argc, char *argv[]) {
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Floor);
+
     QApplication a(argc, argv);
 
     QCoreApplication::setApplicationName("Projects 5 & 6: Lights, Camera & Action!");
