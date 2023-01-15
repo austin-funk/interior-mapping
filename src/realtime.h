@@ -1,6 +1,7 @@
 #pragma once
 
 // Defined before including GLEW to suppress deprecation messages on macOS
+#include "shapes/3DShape.h"
 #include "utils/sceneparser.h"
 #ifdef __APPLE__
 #define GL_SILENCE_DEPRECATION
@@ -50,6 +51,9 @@ private:
     // Device Correction Variables
     int m_devicePixelRatio;
 
+    // functions for finish
+    void killShape(GLuint shapeb, GLuint shapea);
+
     // my methods
     void paintScene();
 
@@ -74,6 +78,25 @@ private:
     GLuint m_defaultFBO;
     GLuint m_fullscreen_vbo;
     GLuint m_fullscreen_vao;
+
+    // Shape classes
+    void generateShape(ThreeDShape &shape, GLuint &vbo, GLuint &vao, std::vector<GLfloat> &data);
+
+    // Send to shader
+    void sendMatrix(GLuint &shader, const GLchar *matName, glm::mat4 &mat);
+    void sendVec3(GLuint &shader, const char* name, glm::vec3 &data);
+    void sendVec4(GLuint &shader, const char* name, glm::vec4 &data);
+    void sendInt(GLuint &shader, const char* name, int &data);
+    void sendFloat(GLuint &shader, const char* name, float &data);
+
+    void sendAllMatrices(glm::mat4 &model, glm::mat4 &view, glm::mat4 &proj, GLuint &shader);
+
+    void sendLightType(GLuint &shader, const char* name, int i, bool &inc);
+    void sendLightData(GLuint &shader);
+
+    void sendMaterialData(GLuint &shader, int i);
+
+    void sendKStuff(GLuint &shader);
 
     // VBO/VAO for shapes
     GLuint m_cone_vbo; // Stores id of vbo

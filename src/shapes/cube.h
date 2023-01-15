@@ -2,11 +2,12 @@
 
 #include <vector>
 #include <glm/glm.hpp>
+#include "3DShape.h"
 
-class Cube
+class Cube: public ThreeDShape
 {
 public:
-    void updateParams(int param1);
+    void updateParams(int param1, int _);
     std::vector<float> generateShape() { return m_vertexData; }
 
 private:

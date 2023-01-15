@@ -1,9 +1,11 @@
 #pragma once
 
+#include <iostream>
 #include <vector>
 #include <glm/glm.hpp>
+#include "3DShape.h"
 
-class Cone
+class Cone: public ThreeDShape
 {
 public:
     void updateParams(int param1, int param2);

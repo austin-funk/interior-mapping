@@ -2,8 +2,9 @@
 
 #include <vector>
 #include <glm/glm.hpp>
+#include "3DShape.h"
 
-class Sphere
+class Sphere: public ThreeDShape
 {
 public:
     void updateParams(int param1, int param2);

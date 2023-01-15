@@ -37,6 +37,7 @@ add_executable(${PROJECT_NAME}
     src/shapes/cone.cpp
     src/shapes/cylinder.cpp
     src/shapes/sphere.cpp
+    src/realhelpers.cpp
 
     src/mainwindow.h
     src/realtime.h
@@ -51,6 +52,7 @@ add_executable(${PROJECT_NAME}
     src/shapes/cylinder.h
     src/shapes/sphere.h
     src/shapes/allshapes.h
+    src/shapes/3DShape.h
 )
 
 # GLM: this creates its library and allows you to `#include "glm/..."`

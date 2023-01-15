@@ -1,7 +1,7 @@
 #include "Cube.h"
 #include <iostream>
 
-void Cube::updateParams(int param1) {
+void Cube::updateParams(int param1, int _) {
     m_vertexData = std::vector<float>();
     m_param1 = param1;
     setVertexData();
