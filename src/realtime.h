@@ -91,12 +91,19 @@ private:
 
     void sendAllMatrices(glm::mat4 &model, glm::mat4 &view, glm::mat4 &proj, GLuint &shader);
 
-    void sendLightType(GLuint &shader, const char* name, int i, bool &inc);
-    void sendLightData(GLuint &shader);
+    void sendLightType(GLuint &shader, const char* name, LightType lt, bool &inc);
+    void createPointLight(SceneLightData &l, int &id, glm::vec3 &pos);
+    void sendLightData(GLuint &shader, std::vector<SceneLightData> &lights);
 
-    void sendMaterialData(GLuint &shader, int i);
+    void sendMaterialData(GLuint &shader, SceneMaterial material);
 
-    void sendKStuff(GLuint &shader);
+    void sendGlobalData(GLuint &shader, SceneGlobalData globalData);
+
+    // Specific to building
+    void sendBuildingLights(GLuint &shader);
+    void sendBuildingMaterial(GLuint &shader);
+    void sendBuildingGlobalData(GLuint &shader);
+    void drawBuilding(GLuint &shader, glm::mat4 &view, glm::mat4 &proj, glm::vec4 &camPos);
 
     // VBO/VAO for shapes
     GLuint m_cone_vbo; // Stores id of vbo

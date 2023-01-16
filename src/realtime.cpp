@@ -4,6 +4,7 @@
 #include <QKeyEvent>
 #include <iostream>
 #include "glm/ext/matrix_clip_space.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "settings.h"
 #include "utils/shaderloader.h"
 #include "shapes/allshapes.h"
@@ -43,6 +44,10 @@ void Realtime::finish() {
     glDeleteRenderbuffers(1, &m_fbo_renderbuffer);
     glDeleteFramebuffers(1, &m_fbo);
 
+    // delete program
+    glDeleteProgram(m_phong_shader);
+    glDeleteProgram(m_texture_shader);
+
     this->doneCurrent();
 }
 
@@ -78,6 +83,29 @@ void Realtime::initializeGL() {
 
     m_phong_shader = ShaderLoader::createShaderProgram(":/resources/shaders/default.vert", ":/resources/shaders/default.frag");
     m_texture_shader = ShaderLoader::createShaderProgram(":/resources/shaders/texture.vert", ":/resources/shaders/texture.frag");
+
+    Cone cone;
+    Cube cube;
+    Cylinder cyl;
+    Sphere sphere;
+
+    // CONE
+    generateShape(cone, m_cone_vbo, m_cone_vao, m_coneData);
+
+    // CUBE
+    generateShape(cube, m_cube_vbo, m_cube_vao, m_cubeData);
+    std::cout << "m_cubeData size: " << m_cubeData.size() << std::endl;
+
+    // CYLINDER
+    generateShape(cyl, m_cyl_vbo, m_cyl_vao, m_cylData);
+
+    // SPHERE
+    generateShape(sphere, m_sphere_vbo, m_sphere_vao, m_sphereData);
+
+    glUseProgram(m_phong_shader);
+    sendBuildingLights(m_phong_shader);
+    sendBuildingGlobalData(m_phong_shader);
+    glUseProgram(0);
 
     glUseProgram(m_texture_shader);
     GLint texture0Loc = glGetUniformLocation(m_texture_shader, "kitten");
@@ -129,7 +157,7 @@ void Realtime::initializeGL() {
 
 void Realtime::paintScene() {
     // clear
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // define model, view, and projection matrices
     glm::mat4 model = glm::mat4(1.0f), view = glm::mat4(1.0f), proj = glm::mat4(1.0f);
     // size of vbo data
@@ -140,7 +168,14 @@ void Realtime::paintScene() {
     float *camPos = &(m_camera.getEye())[0];//m_camera.getEye()
     // projection matrix, reset every time settings/scene are changed
     proj = m_camera.getPerspectiveMatrix();
-    // tell openGL which shader to use
+
+    // if nothing in metadata, draw building
+    if (m_metaData.shapes.size() == 0) {
+        glm::vec4 p = m_camera.getEye();
+        drawBuilding(m_phong_shader, view, proj, p);
+        return;
+    }
+
     glUseProgram(m_phong_shader);
 
     // iterate through every shape
@@ -174,13 +209,13 @@ void Realtime::paintScene() {
         sendAllMatrices(model, view, proj, m_phong_shader);
 
         // pass in light data
-        sendLightData(m_phong_shader);
+        sendLightData(m_phong_shader, m_metaData.lights);
 
         // material factors
-        sendMaterialData(m_phong_shader, i);
+        sendMaterialData(m_phong_shader, m_metaData.shapes.at(i).primitive.material);
 
         // k factors
-        sendKStuff(m_phong_shader);
+        sendGlobalData(m_phong_shader, m_metaData.globalData);
 
         // camera position
         GLint vecLocation_camPos = glGetUniformLocation(m_phong_shader, "camera_pos");
@@ -188,7 +223,7 @@ void Realtime::paintScene() {
             glUniform4fv(vecLocation_camPos, 1, camPos);
         }
 
-        // invert
+        // invert, shouldn't be necessary
         GLint invertLocation = glGetUniformLocation(m_phong_shader, "invert");
         if (invertLocation != -1) {
             glUniform1i(invertLocation, settings.perPixelFilter);
@@ -231,14 +266,6 @@ void Realtime::makeFBO(){
 }
 
 void Realtime::paintGL() {
-    // Students: anything requiring OpenGL calls every frame should be done here
-    // remove this later
-//    if (settings.perPixelFilter) {
-//        glClearColor(1, 1, 1, 1);
-//    } else {
-//        glClearColor(0, 0, 0, 1);
-//    }
-
     glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
 
     glViewport(0, 0, m_fbo_width, m_fbo_height);
@@ -260,26 +287,16 @@ void Realtime::paintGL() {
 void Realtime::paintTexture(GLuint texture){
     glUseProgram(m_texture_shader);
     // pass in processing bools
-    GLint ppLoc = glGetUniformLocation(m_texture_shader, "pixel_processing");
-    if (ppLoc != -1) {
-        glUniform1i(ppLoc, settings.perPixelFilter);
-    }
-    GLint kppLoc = glGetUniformLocation(m_texture_shader, "filter_processing");
-    if (kppLoc != -1) {
-        glUniform1i(kppLoc, settings.kernelBasedFilter);
-    }
+    int pix = settings.perPixelFilter, filt = settings.kernelBasedFilter;
+    sendInt(m_texture_shader, "pixel_processing", pix);
+    sendInt(m_texture_shader, "filter_processing", filt);
+
     // width and height
-    GLint widLoc = glGetUniformLocation(m_texture_shader, "width");
-    if (widLoc != -1) {
-        glUniform1f(widLoc, (float)m_fbo_width);
-    }
-    GLint hLoc = glGetUniformLocation(m_texture_shader, "height");
-    if (hLoc != -1) {
-        glUniform1f(hLoc, (float)m_fbo_height);
-    }
+    float wd = m_fbo_width, ht = m_fbo_height;
+    sendFloat(m_texture_shader, "width", wd);
+    sendFloat(m_texture_shader, "height", ht);
 
     glBindVertexArray(m_fullscreen_vao);
-    // Task 10: Bind "texture" to slot 0
     glBindTexture(GL_TEXTURE_2D, texture);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -351,6 +368,7 @@ void Realtime::settingsChanged() {
 
     // CUBE
     generateShape(cube, m_cube_vbo, m_cube_vao, m_cubeData);
+    std::cout << "m_cubeData size: " << m_cubeData.size() << std::endl;
 
     // CYLINDER
     generateShape(cyl, m_cyl_vbo, m_cyl_vao, m_cylData);
