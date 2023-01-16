@@ -1,3 +1,1 @@
-Y'know the windows from the Spider-Man game?
-
 Some of the code in this project was not written by me and was stencil for a project for CSCI 1230 at Brown University, specifically "Projects 5 & 6: Lights, Camera & Action!" All project handouts can be found [here](https://cs1230.graphics/projects). The core GUI code and general structure of the basics of the project was not written by me. The code that allows for camera movement, XML file parsing, and other core aspects of a functional realtime graphics engine was written by me for the inital project. All further features are written by me for this project.
